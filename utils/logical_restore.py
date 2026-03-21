@@ -1,6 +1,8 @@
 import sys
 from PySide6.QtCore import QProcess, QObject, Signal
 
+from utils.pg_finder import resolve
+
 
 class LogicalRestore(QObject):
     output_ready = Signal(str)
@@ -25,7 +27,9 @@ class LogicalRestore(QObject):
             self.output_ready.emit("Error: Restore Already in Progress")
             return
 
-        command = "pg_restore"
+        command = resolve("pg_restore")
+        self.output_ready.emit(f"Using pg_restore: {command}")
+
         args = [
             "-h", self.host,
             "-p", str(self.port),
@@ -40,8 +44,12 @@ class LogicalRestore(QObject):
         ]
         self.process.start(command, args)
         if not self.process.waitForStarted(3000):
-            self.output_ready.emit("Failed to start")
-            return
+            self.output_ready.emit(
+                f"ERROR: Failed to start pg_restore.\n"
+                f"  Tried: {command}\n"
+                f"  Make sure PostgreSQL is installed and the binary path is set in Settings."
+            )
+            self.finished.emit(1)
 
     def _handle_stdout(self):
         data = self.process.readAllStandardOutput().data().decode()

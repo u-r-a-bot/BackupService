@@ -12,10 +12,11 @@ from PySide6.QtWidgets import (
     QStackedWidget, QVBoxLayout, QWidget,
 )
 
-from ui.backup_panel  import BackupPanel
-from ui.cloud_panel   import CloudPanel
-from ui.restore_panel import RestorePanel
-from ui.widgets       import make_divider
+from ui.backup_panel   import BackupPanel
+from ui.cloud_panel    import CloudPanel
+from ui.restore_panel  import RestorePanel
+from ui.settings_panel import SettingsPanel
+from ui.widgets        import make_divider
 
 
 # ──────────────────────────────────────────────────────────────
@@ -44,6 +45,7 @@ class MainWindow(QMainWindow):
         ("💾", "Backup",       BackupPanel),
         ("⏪", "Restore",      RestorePanel),
         ("☁",  "Cloud Upload", CloudPanel),
+        ("⚙",  "Settings",    SettingsPanel),
     ]
 
     def __init__(self):

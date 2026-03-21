@@ -1,9 +1,11 @@
 import sys
 from PySide6.QtCore import QProcess, QObject, Signal
 
+from utils.pg_finder import resolve
+
 
 class LogicalBackup(QObject):
-    output_ready = Signal(str) # Signal to communicate with UI
+    output_ready = Signal(str)
     finished = Signal(int)
 
     def __init__(self, db_name, output_path):
@@ -16,17 +18,18 @@ class LogicalBackup(QObject):
         self.host = "localhost"
         self.port = 5432
         self.user = "postgres"
-        #Connect process signals to internal methods
         self.process.readyReadStandardOutput.connect(self._handle_stdout)
         self.process.readyReadStandardError.connect(self._handle_stderr)
         self.process.finished.connect(self.finished.emit)
-
 
     def backup(self):
         if self.process.state() != QProcess.ProcessState.NotRunning:
             self.output_ready.emit("Error: Backup Already in Progress")
             return
-        command = "pg_dump"
+
+        command = resolve("pg_dump")
+        self.output_ready.emit(f"Using pg_dump: {command}")
+
         args = [
             "-h", self.host,
             "-p", str(self.port),
@@ -38,12 +41,16 @@ class LogicalBackup(QObject):
             "--if-exists",
             "--no-owner",
             "--no-privileges",
-            "-v",  # verbose so output_ready gets meaningful progress lines
+            "-v",
         ]
-        self.process.start(command, args) #Start the process the PysideWay
+        self.process.start(command, args)
         if not self.process.waitForStarted(3000):
-            self.output_ready.emit("Failed to start")
-            return
+            self.output_ready.emit(
+                f"ERROR: Failed to start pg_dump.\n"
+                f"  Tried: {command}\n"
+                f"  Make sure PostgreSQL is installed and the binary path is set in Settings."
+            )
+            self.finished.emit(1)
 
     def _handle_stdout(self):
         data = self.process.readAllStandardOutput().data().decode()
@@ -51,11 +58,7 @@ class LogicalBackup(QObject):
 
     def _handle_stderr(self):
         data = self.process.readAllStandardError().data().decode()
-        # pg_dump sends verbose progress to stderr — only tag real errors
         if any(kw in data.lower() for kw in ("error", "fatal", "could not", "failed")):
             self.output_ready.emit(f"ERROR: {data}")
         else:
             self.output_ready.emit(data)
-
-
-
