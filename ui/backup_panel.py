@@ -225,9 +225,10 @@ class BackupPanel(BasePanel):
         self._set_busy(True)
 
         self._logical_worker = LogicalBackup(db_name=vals["db"], output_path=out)
-        self._logical_worker.host = vals["host"]
-        self._logical_worker.port = vals["port"]
-        self._logical_worker.user = vals["user"]
+        self._logical_worker.host     = vals["host"]
+        self._logical_worker.port     = vals["port"]
+        self._logical_worker.user     = vals["user"]
+        self._logical_worker.password = vals["password"]   # ← pass password
 
         def _done(code: int):
             if code == 0:
@@ -257,6 +258,7 @@ class BackupPanel(BasePanel):
             port=vals["port"],
             user=vals["user"],
         )
+        self._physical_worker.password = vals["password"]  # ← pass password
 
         def _done(code: int):
             if code == 0:

@@ -2,9 +2,9 @@
 ui/widgets.py
 ─────────────
 Reusable building blocks shared by every panel:
-  • helper functions  (_divider, _section_header, _path_row, _labelled)
+  • helper functions  (make_divider, section_header, hint_card, labelled, path_row)
   • LogWidget         — coloured terminal-style output box
-  • ConnectionGroup   — host / port / user / database inputs
+  • ConnectionGroup   — host / port / user / password / database inputs
   • CloudGroup        — optional Google Drive upload section
   • BasePanel         — abstract base for all operation panels
 """
@@ -157,7 +157,6 @@ class LogWidget(QTextEdit):
         else:
             color = "#c9d1e0"
 
-        # escape HTML special chars
         safe = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         self.append(f'<span style="color:{color};">{safe}</span>')
         self.moveCursor(QTextCursor.End)
@@ -167,7 +166,7 @@ class LogWidget(QTextEdit):
 
 
 # ──────────────────────────────────────────────────────────────
-#  ConnectionGroup  –  host / port / user / database
+#  ConnectionGroup  –  host / port / user / password / database
 # ──────────────────────────────────────────────────────────────
 
 class ConnectionGroup(QGroupBox):
@@ -177,16 +176,12 @@ class ConnectionGroup(QGroupBox):
         layout = QVBoxLayout(self)
         layout.setSpacing(8)
 
+        # ── Row 1: HOST + PORT ──
         self.host_edit = QLineEdit("localhost")
         self.host_edit.setToolTip("PostgreSQL server hostname or IP")
         self.port_edit = QLineEdit("5432")
         self.port_edit.setFixedWidth(80)
         self.port_edit.setToolTip("PostgreSQL port (default: 5432)")
-        self.user_edit = QLineEdit("postgres")
-        self.user_edit.setToolTip("PostgreSQL superuser name")
-        self.db_edit = QLineEdit()
-        self.db_edit.setPlaceholderText("e.g.  my_database")
-        self.db_edit.setToolTip("The database to backup or restore into")
 
         row1 = QHBoxLayout()
         row1.setSpacing(10)
@@ -198,8 +193,14 @@ class ConnectionGroup(QGroupBox):
             row1.addWidget(w)
             row1.addSpacing(8)
         row1.addStretch()
-
         layout.addLayout(row1)
+
+        # ── Row 2: USER + DATABASE (if show_db) ──
+        self.user_edit = QLineEdit("postgres")
+        self.user_edit.setToolTip("PostgreSQL superuser name")
+        self.db_edit = QLineEdit()
+        self.db_edit.setPlaceholderText("e.g.  my_database")
+        self.db_edit.setToolTip("The database to backup or restore into")
 
         if show_db:
             row2 = QHBoxLayout()
@@ -216,12 +217,47 @@ class ConnectionGroup(QGroupBox):
         else:
             layout.addLayout(labelled("USER", self.user_edit))
 
+        # ── Row 3: PASSWORD ──
+        self.password_edit = QLineEdit()
+        self.password_edit.setPlaceholderText("Leave blank if no password is set")
+        self.password_edit.setEchoMode(QLineEdit.Password)
+        self.password_edit.setToolTip("PostgreSQL user password (passed via PGPASSWORD)")
+
+        pw_row = QHBoxLayout()
+        pw_row.setSpacing(10)
+        pw_lbl = QLabel("PASSWORD")
+        pw_lbl.setMinimumWidth(70)
+        pw_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+        # Eye toggle button to show/hide password
+        self._pw_visible = False
+        self._eye_btn = QPushButton("👁")
+        self._eye_btn.setObjectName("btn_browse")
+        self._eye_btn.setFixedWidth(40)
+        self._eye_btn.setToolTip("Show / hide password")
+        self._eye_btn.clicked.connect(self._toggle_password_visibility)
+
+        pw_row.addWidget(pw_lbl)
+        pw_row.addWidget(self.password_edit, 1)
+        pw_row.addWidget(self._eye_btn)
+        pw_row.addSpacing(8)
+        pw_row.addStretch()
+        layout.addLayout(pw_row)
+
+    def _toggle_password_visibility(self):
+        self._pw_visible = not self._pw_visible
+        self.password_edit.setEchoMode(
+            QLineEdit.Normal if self._pw_visible else QLineEdit.Password
+        )
+        self._eye_btn.setText("🙈" if self._pw_visible else "👁")
+
     def values(self) -> dict:
         return {
-            "host": self.host_edit.text().strip() or "localhost",
-            "port": int(self.port_edit.text().strip() or 5432),
-            "user": self.user_edit.text().strip() or "postgres",
-            "db":   self.db_edit.text().strip() if self._show_db else "",
+            "host":     self.host_edit.text().strip() or "localhost",
+            "port":     int(self.port_edit.text().strip() or 5432),
+            "user":     self.user_edit.text().strip() or "postgres",
+            "password": self.password_edit.text(),          # raw; passed as PGPASSWORD
+            "db":       self.db_edit.text().strip() if self._show_db else "",
         }
 
 
@@ -249,7 +285,6 @@ class CloudGroup(QGroupBox):
         layout.addLayout(cred_row)
         layout.addLayout(folder_row)
 
-        # disable sub-fields until checkbox is ticked
         self._sub = [self.cred_edit, self.folder_edit]
         for w in self._sub:
             w.setEnabled(False)
@@ -297,7 +332,7 @@ class BasePanel(QWidget):
         outer.setContentsMargins(28, 24, 28, 20)
         outer.setSpacing(14)
 
-        # ── header area (subclass fills self.header_layout) ──
+        # ── header area ──
         self.header_layout = QVBoxLayout()
         self.header_layout.setSpacing(4)
         outer.addLayout(self.header_layout)

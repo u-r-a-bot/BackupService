@@ -191,7 +191,6 @@ class RestorePanel(BasePanel):
     def _apply_detection(self, info: BackupInfo):
         self._detected = info
 
-        # badge
         if info.kind == BackupKind.LOGICAL:
             self._badge.setText("  LOGICAL BACKUP  ")
             self._badge.setObjectName("badge_logical")
@@ -204,28 +203,20 @@ class RestorePanel(BasePanel):
         self._badge.style().unpolish(self._badge)
         self._badge.style().polish(self._badge)
 
-        # description
         self._detect_desc.setText(info.description)
         self._detect_desc.setVisible(True)
-
-        # manual override only for unknown
         self._override_group.setVisible(info.kind == BackupKind.UNKNOWN)
-
         self._refresh_fields()
 
     def _refresh_fields(self):
-        """Show the right field section based on detected or manually chosen type."""
         if self._detected is None:
             return
 
         if self._detected.kind == BackupKind.LOGICAL:
-            show_logical  = True
-            show_physical = False
+            show_logical, show_physical = True, False
         elif self._detected.kind == BackupKind.PHYSICAL:
-            show_logical  = False
-            show_physical = True
+            show_logical, show_physical = False, True
         else:
-            # unknown: use radio buttons
             show_logical  = self._radio_logical.isChecked()
             show_physical = not show_logical
 
@@ -256,7 +247,6 @@ class RestorePanel(BasePanel):
             return
 
         kind = self._effective_kind()
-
         if kind == BackupKind.LOGICAL:
             self._run_logical(src)
         elif kind == BackupKind.PHYSICAL:
@@ -276,9 +266,10 @@ class RestorePanel(BasePanel):
         self._set_busy(True)
 
         self._logical_worker = LogicalRestore(db_name=vals["db"], input_path=src)
-        self._logical_worker.host = vals["host"]
-        self._logical_worker.port = vals["port"]
-        self._logical_worker.user = vals["user"]
+        self._logical_worker.host     = vals["host"]
+        self._logical_worker.port     = vals["port"]
+        self._logical_worker.user     = vals["user"]
+        self._logical_worker.password = vals["password"]   # ← pass password
 
         self._connect_worker(
             self._logical_worker,
@@ -308,6 +299,7 @@ class RestorePanel(BasePanel):
             port=vals["port"],
             user=vals["user"],
         )
+        # PhysicalRestore uses Python tarfile — no password needed for extraction
 
         self._connect_worker(
             self._physical_worker,
@@ -327,6 +319,11 @@ class RestorePanel(BasePanel):
             if w and hasattr(w, "process"):
                 try:
                     w.process.kill()
+                except Exception:
+                    pass
+            if w and hasattr(w, "cancel"):
+                try:
+                    w.cancel()
                 except Exception:
                     pass
         self._set_status("Cancelled.", "error")

@@ -1,11 +1,3 @@
-"""
-main.py
-───────
-Entry point for PGSafe.
-
-Loads the QSS stylesheet from  ui/styles.qss  and launches the window.
-"""
-
 import sys
 from pathlib import Path
 
