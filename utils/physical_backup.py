@@ -51,7 +51,5 @@ class PhysicalBackup(QObject):
 
     def _handle_stderr(self):
         data = self.process.readAllStandardError().data().decode()
-        if any(kw in data.lower() for kw in ("error", "fatal", "could not", "failed")):
-            self.output_ready.emit(f"ERROR: {data}")
-        else:
+        if data.strip():
             self.output_ready.emit(data)
