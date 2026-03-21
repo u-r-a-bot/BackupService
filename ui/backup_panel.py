@@ -17,16 +17,19 @@ The user picks a backup *mode* using two clearly-labelled buttons:
   └──────────────────────────────────────────────────┘
 
 The panel then shows only the fields that are relevant for the chosen mode.
+The logical backup output path is pre-populated with a suggested filename
+based on the database name and current timestamp when the user browses.
 """
 
 from __future__ import annotations
 
+import datetime
 from pathlib import Path
 from typing import Optional
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QGroupBox, QHBoxLayout, QLabel, QLineEdit,
+    QFileDialog, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QVBoxLayout, QWidget,
 )
 
@@ -136,13 +139,32 @@ class BackupPanel(BasePanel):
         self.conn = ConnectionGroup(show_db=True)
         lv.addWidget(self.conn)
 
+        # Output path group with auto-suggested filename
         out_group = QGroupBox("WHERE TO SAVE THE BACKUP FILE")
         out_inner = QVBoxLayout(out_group)
-        out_row, self.logical_out_edit = path_row(
-            "Save to",
-            "e.g.  /backups/mydb_2024.dump",
-            is_save=True,
+
+        out_row = QHBoxLayout()
+        out_row.setSpacing(10)
+
+        out_lbl = QLabel("SAVE TO")
+        out_lbl.setMinimumWidth(110)
+        out_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+        self.logical_out_edit = QLineEdit()
+        self.logical_out_edit.setObjectName("path_input")
+        self.logical_out_edit.setPlaceholderText(
+            "e.g.  C:/backups/mydb_2026-03-21.dump"
         )
+
+        out_browse_btn = QPushButton("…")
+        out_browse_btn.setObjectName("btn_browse")
+        out_browse_btn.setFixedWidth(40)
+        out_browse_btn.setToolTip("Browse for save location")
+        out_browse_btn.clicked.connect(self._browse_logical_output)
+
+        out_row.addWidget(out_lbl)
+        out_row.addWidget(self.logical_out_edit, 1)
+        out_row.addWidget(out_browse_btn)
         out_inner.addLayout(out_row)
         lv.addWidget(out_group)
 
@@ -192,6 +214,35 @@ class BackupPanel(BasePanel):
 
         self.run_btn.setText("START BACKUP")
 
+    # ── smart browse for logical output ─────────────────────
+
+    def _browse_logical_output(self):
+        """
+        Open a Save dialog pre-filled with a suggested filename:
+            <db_name>_<YYYY-MM-DD_HH-MM>.dump
+
+        The starting directory is either:
+          • the folder of whatever is already in the edit box, or
+          • the user's home directory
+        """
+        db_name   = self.conn.db_edit.text().strip() or "backup"
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")
+        filename  = f"{db_name}_{timestamp}.dump"
+
+        current = self.logical_out_edit.text().strip()
+        start_dir = str(Path(current).parent) if current else str(Path.home())
+
+        suggested_path = str(Path(start_dir) / filename)
+
+        chosen, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save backup file",
+            suggested_path,                         # ← dialog opens here with name pre-filled
+            "Dump files (*.dump);;All files (*)",
+        )
+        if chosen:
+            self.logical_out_edit.setText(chosen)
+
     # ── mode switching ───────────────────────────────────────
 
     def _set_mode(self, mode: str):
@@ -228,7 +279,7 @@ class BackupPanel(BasePanel):
         self._logical_worker.host     = vals["host"]
         self._logical_worker.port     = vals["port"]
         self._logical_worker.user     = vals["user"]
-        self._logical_worker.password = vals["password"]   # ← pass password
+        self._logical_worker.password = vals["password"]
 
         def _done(code: int):
             if code == 0:
@@ -258,7 +309,7 @@ class BackupPanel(BasePanel):
             port=vals["port"],
             user=vals["user"],
         )
-        self._physical_worker.password = vals["password"]  # ← pass password
+        self._physical_worker.password = vals["password"]
 
         def _done(code: int):
             if code == 0:
