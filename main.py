@@ -5,9 +5,16 @@ from PySide6.QtWidgets import QApplication
 
 from ui.main_window import MainWindow
 
+import sys
+
+def _get_base_path() -> Path:
+    # PyInstaller sets sys._MEIPASS when frozen
+    if hasattr(sys, "_MEIPASS"):
+        return Path(sys._MEIPASS)
+    return Path(__file__).parent
 
 def _load_stylesheet() -> str:
-    qss_path = Path(__file__).parent / "ui" / "styles.qss"
+    qss_path = _get_base_path() / "ui" / "styles.qss"
     try:
         return qss_path.read_text(encoding="utf-8")
     except FileNotFoundError:
